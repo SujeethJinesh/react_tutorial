@@ -3,6 +3,18 @@ const express = require('express');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const cors = require('cors');
+const mongoose = require('mongoose');
+const logs = require('./api/logs');
+
+require('dotenv').config();
+
+const { notFound, errorHandler } = require('./middlewares');
+
+// set up mongoose database connection
+mongoose.connect(process.env.DATABASE_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
 // starting up app
 const app = express();
@@ -14,9 +26,11 @@ app.use(helmet());
 // use cors for cross origin resource sharing
 app.use(
   cors({
-    origin: 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN,
   }),
 );
+// Body parser middleware for post requests
+app.use(express.json());
 
 // on the get request to the / path, we return this
 app.get('/', (req, res) => {
@@ -25,26 +39,17 @@ app.get('/', (req, res) => {
   });
 });
 
+// using our logs router to handle requests to api/logs
+app.use('/api/logs', logs);
+
 // error handler for 404s, this happens if the route is not defined above.
 // We pass along the error code to the next error handler after this
-app.use((req, res, next) => {
-  const error = new Error(`Not Found - ${req.originalUrl}`);
-  res.status(404);
-  next(error);
-});
+app.use(notFound);
 
 // Note. much like above, we can have a middleware that checks if a token is invalid
 
 // error handler for all response codes
-// eslint-disable-next-line no-unused-vars
-app.use((error, req, res, next) => {
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  res.status(statusCode);
-  res.json({
-    message: error.message,
-    stack: process.env.NODE_ENV === 'production' ? '🥞' : error.stack,
-  });
-});
+app.use(errorHandler);
 
 const port = process.env.PORT || 1337;
 app.listen(port, () => {
